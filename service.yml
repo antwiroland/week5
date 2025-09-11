@@ -11,7 +11,6 @@ Parameters:
     Description: 'Timestamp to force changeset creation'
 
 Resources:
-  # ECS TASK DEFINITION - blueprint for how to run your application
   ECSTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -44,7 +43,7 @@ Resources:
               awslogs-region: !Ref 'AWS::Region'
               awslogs-stream-prefix: ecs
 
-  # --- GREEN TARGET GROUP FOR BLUE-GREEN DEPLOYMENT ---
+
   GreenTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
@@ -62,7 +61,7 @@ Resources:
       Matcher:
         HttpCode: '200'
 
-  # --- TEST LISTENER FOR BLUE-GREEN DEPLOYMENT ---
+
   TestListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -73,7 +72,7 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref GreenTargetGroup
 
-  # --- ECS SERVICE ---
+
   ECSService:
     Type: AWS::ECS::Service
     Properties:
@@ -97,7 +96,7 @@ Resources:
           SecurityGroups:
             - !ImportValue 'java-full-stack-ECSSecurityGroupId'
 
-  # --- APPLICATION AUTO SCALING ---
+
   ScalableTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     DependsOn: ECSService
@@ -124,14 +123,14 @@ Resources:
         PredefinedMetricSpecification:
           PredefinedMetricType: ECSServiceAverageCPUUtilization
 
-  # --- CODE DEPLOY APPLICATION ---
+
   CodeDeployApp:
     Type: AWS::CodeDeploy::Application
     Properties:
       ApplicationName: !Sub ${AppName}-CodeDeploy-App
       ComputePlatform: ECS
 
-  # --- CODE DEPLOY DEPLOYMENT GROUP ---
+
   CodeDeployDeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
     DependsOn: ECSService

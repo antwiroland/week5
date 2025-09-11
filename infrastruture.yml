@@ -8,13 +8,13 @@ Parameters:
     Description: 'Application name used to name resources'
   GitHubRepoName:
     Type: String
-    Default: 'ecs-cicd-lab-app'
+    Default: 'week5'
     Description: 'Name of the GitHub repository containing the application code'
   GitHubRepoOwner:
     Type: String
-    Default: 'ibra15-cyber'
+    Default: 'antwiroland'
     Description: 'The owner of the GitHub repository'
-      #use this to trigger change
+    
   DeploymentTimestamp:
     Type: String
     Default: "default"
@@ -34,7 +34,7 @@ Metadata:
           - GitHubRepoOwner
 
 Resources:
-  # --- IAM ROLES --- assumes by ecs agent to pull image from ecr and publish to cloudwatch
+
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -49,7 +49,7 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
       Path: /
 
-  # roles assumed by the ecs-tasks (actual running container) towards other services in the future
+
   ECSTaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -62,7 +62,7 @@ Resources:
             Action: ['sts:AssumeRole']
       Path: /
 
-  # role assumed by codepeline to carry s3 actions of our artifact bucket when the codebuild placed them
+
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -99,7 +99,7 @@ Resources:
                   - 'codedeploy:RegisterApplicationRevision'
                   - 'ecs:DescribeServices'
                   - 'ecs:DescribeTaskDefinition'
-                  - 'iam:PassRole' #crucial—it allows Pipeline to pass roles to other services (like passing the ECS task role to CodeDeploy).
+                  - 'iam:PassRole'
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -115,7 +115,7 @@ Resources:
                 Resource: '*'
       Path: /
 
-#Role assumed by codedeploy
+
   CodeDeployServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -146,7 +146,7 @@ Resources:
               Resource: '*'
       Path: /
 
-# creates an identity provider for an iam that trusts github's  id token service
+
   GitHubOIDCProvider:
     Type: AWS::IAM::OIDCProvider
     Properties:
@@ -154,11 +154,11 @@ Resources:
       ClientIdList: ['sts.amazonaws.com']
       ThumbprintList: ['6938fd4d98bab03faadb97b34396831e3780aea1']
 
-# role assumed by github actiosn
+
   GitHubOIDCRole:
     Type: AWS::IAM::Role
     Properties:
-      AssumeRolePolicyDocument: #"Trust tokens from our GitHubOIDCProvider if they come from the specified repository (repo:ibra15-cyber/ecs-cicd-lab-app:*)."
+      AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow

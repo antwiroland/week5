@@ -41,14 +41,14 @@ Resources:
                 Category: Deploy
                 Owner: AWS
                 Version: '1'
-                Provider: CodeDeployToECS  # CHANGED FROM: CodeDeploy
+                Provider: CodeDeployToECS
               Configuration:
                 ApplicationName: !ImportValue 'java-full-stack-CodeDeployAppName'
                 DeploymentGroupName: !ImportValue 'java-full-stack-CodeDeployDeploymentGroupName'
-                TaskDefinitionTemplateArtifact: SourceArtifact  # NEW
-                TaskDefinitionTemplatePath: "taskdef.json"      # NEW
-                AppSpecTemplateArtifact: SourceArtifact         # NEW
-                AppSpecTemplatePath: "appspec.yml"              # NEW
+                TaskDefinitionTemplateArtifact: SourceArtifact  
+                TaskDefinitionTemplatePath: "taskdef.json"     
+                AppSpecTemplateArtifact: SourceArtifact         
+                AppSpecTemplatePath: "appspec.yml"             
               InputArtifacts:
                 - Name: SourceArtifact
               RunOrder: 1
