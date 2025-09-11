@@ -14,7 +14,7 @@ Resources:
       ApplicationName: !Sub '${AppName}-CodeDeployApp'
       ComputePlatform: ECS
 
-  # CodeDeploy ECS Deployment Group
+  # CodeDeploy ECS Deployment Group (fixed ECSService issue)
   CodeDeployDeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
     Properties:
@@ -30,9 +30,6 @@ Resources:
           TerminationWaitTimeInMinutes: 1
         DeploymentReadyOption:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
-      ECSService:
-        ClusterName: !Sub '${AppName}-Cluster'
-        ServiceName: !Sub '${AppName}-Service'
       LoadBalancerInfo:
         TargetGroupPairInfoList:
           - TargetGroups:
