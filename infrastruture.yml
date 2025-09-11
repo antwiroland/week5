@@ -6,27 +6,6 @@ Parameters:
     Type: String
     Default: 'java-full-stack'
     Description: 'Application name used to name resources'
-  GitHubRepoName:
-    Type: String
-    Default: 'week5'
-    Description: 'Name of the GitHub repository containing the application code'
-  GitHubRepoOwner:
-    Type: String
-    Default: 'antwiroland'
-    Description: 'The owner of the GitHub repository'
-
-Metadata:
-  AWS::CloudFormation::Interface:
-    ParameterGroups:
-      - Label:
-          default: "Application Configuration"
-        Parameters:
-          - AppName
-      - Label:
-          default: "GitHub Configuration"
-        Parameters:
-          - GitHubRepoName
-          - GitHubRepoOwner
 
 Resources:
   # IAM Roles
@@ -42,7 +21,6 @@ Resources:
             Action: ['sts:AssumeRole']
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-      Path: /
 
   ECSTaskRole:
     Type: AWS::IAM::Role
@@ -54,7 +32,6 @@ Resources:
             Principal:
               Service: [ecs-tasks.amazonaws.com]
             Action: ['sts:AssumeRole']
-      Path: /
 
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
@@ -82,8 +59,6 @@ Resources:
                   - !Sub ${ArtifactBucket.Arn}/*
               - Effect: Allow
                 Action:
-                  - 'codebuild:BatchGetBuilds'
-                  - 'codebuild:StartBuild'
                   - 'codedeploy:CreateDeployment'
                   - 'codedeploy:GetDeployment'
                   - 'codedeploy:GetDeploymentConfig'
@@ -94,19 +69,6 @@ Resources:
                   - 'ecs:DescribeTaskDefinition'
                   - 'iam:PassRole'
                 Resource: '*'
-              - Effect: Allow
-                Action:
-                  - 'ecr:DescribeImages'
-                  - 'ecr:DescribeRepositories'
-                  - 'ecr:ListImages'
-                  - 'ecr:BatchGetImage'
-                  - 'ecr:GetDownloadUrlForLayer'
-                Resource: !Sub 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${AppName}'
-              - Effect: Allow
-                Action:
-                  - 'ecr:GetAuthorizationToken'
-                Resource: '*'
-      Path: /
 
   CodeDeployServiceRole:
     Type: AWS::IAM::Role
@@ -120,119 +82,6 @@ Resources:
             Action: ['sts:AssumeRole']
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
-      Policies:
-        - PolicyName: ExtendedTaggingPermissions
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 'ec2:CreateTags'
-                  - 'ec2:DeleteTags'
-                  - 'elasticloadbalancing:AddTags'
-                  - 'elasticloadbalancing:RemoveTags'
-                  - 'ecs:TagResource'
-                  - 'ecs:UntagResource'
-                  - 'tag:TagResources'
-                  - 'tag:UntagResources'
-                  - 'resource-groups:Tag'
-                  - 'resource-groups:Untag'
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - 'ec2:Describe*'
-                  - 'elasticloadbalancing:Describe*'
-                  - 'ecs:Describe*'
-                Resource: '*'
-      Path: /
-
-  GitHubOIDCProvider:
-    Type: AWS::IAM::OIDCProvider
-    Properties:
-      Url: https://token.actions.githubusercontent.com
-      ClientIdList: ['sts.amazonaws.com']
-      ThumbprintList: ['6938fd4d98bab03faadb97b34396831e3780aea1']
-
-  GitHubOIDCRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Federated: !Ref GitHubOIDCProvider
-            Action: 'sts:AssumeRoleWithWebIdentity'
-            Condition:
-              StringEquals:
-                'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
-              StringLike:
-                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubRepoOwner}/${GitHubRepoName}:*'
-      Policies:
-        - PolicyName: ECRPushPull
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 'ecr:GetAuthorizationToken'
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - 'ecr:BatchCheckLayerAvailability'
-                  - 'ecr:GetDownloadUrlForLayer'
-                  - 'ecr:GetRepositoryPolicy'
-                  - 'ecr:DescribeRepositories'
-                  - 'ecr:ListImages'
-                  - 'ecr:DescribeImages'
-                  - 'ecr:BatchGetImage'
-                  - 'ecr:InitiateLayerUpload'
-                  - 'ecr:UploadLayerPart'
-                  - 'ecr:CompleteLayerUpload'
-                  - 'ecr:PutImage'
-                Resource: !Sub 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${AppName}'
-        - PolicyName: S3ArtifactAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 's3:PutObject'
-                  - 's3:GetObject'
-                Resource: !Sub 'arn:aws:s3:::${ArtifactBucket}/deployment-artifacts/*'
-        - PolicyName: ECSCodeDeployAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 'ecs:RegisterTaskDefinition'
-                  - 'ecs:DescribeTaskDefinition'
-                  - 'ecs:DescribeServices'
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - 'codedeploy:CreateDeployment'
-                  - 'codedeploy:GetDeployment'
-                  - 'codedeploy:GetDeploymentConfig'
-                  - 'codedeploy:GetApplication'
-                  - 'codedeploy:GetApplicationRevision'
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - 'iam:PassRole'
-                Resource:
-                  - !GetAtt ECSTaskExecutionRole.Arn
-                  - !GetAtt ECSTaskRole.Arn
-        - PolicyName: PipelineTriggerAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 'codepipeline:StartPipelineExecution'
-                Resource: !Sub 'arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${AppName}-Pipeline'
-      Path: /
 
   # Networking
   VPC:
@@ -300,40 +149,6 @@ Resources:
         - Key: Name
           Value: !Sub ${AppName}-PrivateSubnet-AZ2
 
-  NatGateway1EIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-      Tags:
-        - Key: Name
-          Value: !Sub ${AppName}-NAT1-EIP
-
-  NatGateway2EIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-      Tags:
-        - Key: Name
-          Value: !Sub ${AppName}-NAT2-EIP
-
-  NatGateway1:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt NatGateway1EIP.AllocationId
-      SubnetId: !Ref PublicSubnet1
-      Tags:
-        - Key: Name
-          Value: !Sub ${AppName}-NAT-GW-AZ1
-
-  NatGateway2:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt NatGateway2EIP.AllocationId
-      SubnetId: !Ref PublicSubnet2
-      Tags:
-        - Key: Name
-          Value: !Sub ${AppName}-NAT-GW-AZ2
-
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -371,14 +186,14 @@ Resources:
     Properties:
       RouteTableId: !Ref PrivateRouteTable1
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway1
+      GatewayId: !Ref InternetGateway
 
   PrivateRoute2:
     Type: AWS::EC2::Route
     Properties:
       RouteTableId: !Ref PrivateRouteTable2
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway2
+      GatewayId: !Ref InternetGateway
 
   PublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -482,23 +297,6 @@ Resources:
       Matcher:
         HttpCode: '200'
 
-  ALBGreenTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name: !Sub ${AppName}-Green-TG
-      Port: 80
-      Protocol: HTTP
-      TargetType: ip
-      VpcId: !Ref VPC
-      HealthCheckPath: /
-      HealthCheckProtocol: HTTP
-      HealthCheckIntervalSeconds: 30
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 3
-      Matcher:
-        HttpCode: '200'
-
   ALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -509,21 +307,11 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup
 
-  TestListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref ALB
-      Port: 9000
-      Protocol: HTTP
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref ALBGreenTargetGroup
-
   # CloudWatch Logs
   CloudWatchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /ecs/${AppName}
+      LogGroupName: !Sub /ecs/${AppName
       RetentionInDays: 7
 
   # S3 Bucket
@@ -551,72 +339,10 @@ Resources:
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
         DeploymentOption: WITH_TRAFFIC_CONTROL
-      BlueGreenDeploymentConfiguration:
-        TerminateBlueInstancesOnDeploymentSuccess:
-          Action: TERMINATE
-          TerminationWaitTimeInMinutes: 5
-        DeploymentReadyOption:
-          WaitTimeInMinutes: 0
-      LoadBalancerInfo:
-        TargetGroupPairInfoList:
-          - TargetGroups:
-              - Name: !GetAtt ALBTargetGroup.TargetGroupName
-              - Name: !GetAtt ALBGreenTargetGroup.TargetGroupName
-            ProdTrafficRoute:
-              ListenerArns:
-                - !Ref ALBListener
-            TestTrafficRoute:
-              ListenerArns:
-                - !Ref TestListener
       AutoRollbackConfiguration:
         Enabled: true
         Events:
           - DEPLOYMENT_FAILURE
-
-  # EventBridge Rule to trigger pipeline on ECR push
-  ECRPushEventRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: !Sub Rule to trigger pipeline when a new image is pushed to ${AppName} ECR repo
-      EventPattern:
-        source:
-          - aws.ecr
-        detail-type:
-          - ECR Image Action
-        detail:
-          action-type:
-            - PUSH
-          result:
-            - SUCCESS
-          repository-name:
-            - !Ref AppName
-          image-tag:
-            - latest
-      Targets:
-        - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${AppName}-Pipeline
-          Id: CodePipelineTarget
-          RoleArn: !GetAtt EventBridgePipelineRole.Arn
-
-  EventBridgePipelineRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: [events.amazonaws.com]
-            Action: ['sts:AssumeRole']
-      Policies:
-        - PolicyName: StartPipeline
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 'codepipeline:StartPipelineExecution'
-                Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${AppName}-Pipeline
-      Path: /
 
 Outputs:
   # Required for Pipeline
@@ -717,47 +443,17 @@ Outputs:
     Export:
       Name: !Sub ${AppName}-ALBTargetGroupArn
 
-  ALBGreenTargetGroupArn:
-    Description: ALB Green Target Group ARN
-    Value: !Ref ALBGreenTargetGroup
-    Export:
-      Name: !Sub ${AppName}-ALBGreenTargetGroupArn
-
   CloudWatchLogGroupName:
     Description: CloudWatch Log Group Name
     Value: !Ref CloudWatchLogGroup
     Export:
       Name: !Sub ${AppName}-CloudWatchLogGroupName
 
-  GitHubOIDCRoleArn:
-    Description: GitHub OIDC Role ARN
-    Value: !GetAtt GitHubOIDCRole.Arn
-    Export:
-      Name: !Sub ${AppName}-GitHubOIDCRoleArn
-
-  ALBTargetGroupName:
-    Description: ALB Target Group Name
-    Value: !GetAtt ALBTargetGroup.TargetGroupName
-    Export:
-      Name: !Sub ${AppName}-ALBTargetGroupName
-
-  ALBGreenTargetGroupName:
-    Description: ALB Green Target Group Name
-    Value: !GetAtt ALBGreenTargetGroup.TargetGroupName
-    Export:
-      Name: !Sub ${AppName}-ALBGreenTargetGroupName
-
   ALBListenerArn:
     Description: ALB Listener ARN
     Value: !Ref ALBListener
     Export:
       Name: !Sub ${AppName}-ALBListenerArn
-
-  TestListenerArn:
-    Description: Test Listener ARN
-    Value: !Ref TestListener
-    Export:
-      Name: !Sub ${AppName}-TestListenerArn
 
   CodeDeployServiceRoleArn:
     Description: CodeDeploy Service Role ARN
