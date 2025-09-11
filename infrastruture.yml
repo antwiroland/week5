@@ -78,8 +78,8 @@ Resources:
                   - 's3:GetBucketVersioning'
                   - 's3:PutObject'
                 Resource:
-                  - !Sub 'arn:aws:s3:::${ArtifactBucket}'
-                  - !Sub 'arn:aws:s3:::${ArtifactBucket}/*'
+                  - !GetAtt ArtifactBucket.Arn
+                  - !Sub ${ArtifactBucket.Arn}/*
               - Effect: Allow
                 Action:
                   - 'codebuild:BatchGetBuilds'
@@ -532,3 +532,235 @@ Resources:
     Properties:
       VersioningConfiguration:
         Status: Enabled
+
+  # CodeDeploy Application
+  CodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: !Sub ${AppName}-CodeDeployApp
+      ComputePlatform: ECS
+
+  # CodeDeploy Deployment Group
+  CodeDeployDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName: !Ref CodeDeployApplication
+      DeploymentGroupName: !Sub ${AppName}-DeploymentGroup
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
+      DeploymentStyle:
+        DeploymentType: BLUE_GREEN
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+      BlueGreenDeploymentConfiguration:
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 5
+        DeploymentReadyOption:
+          WaitTimeInMinutes: 0
+      LoadBalancerInfo:
+        TargetGroupPairInfoList:
+          - TargetGroups:
+              - Name: !GetAtt ALBTargetGroup.TargetGroupName
+              - Name: !GetAtt ALBGreenTargetGroup.TargetGroupName
+            ProdTrafficRoute:
+              ListenerArns:
+                - !Ref ALBListener
+            TestTrafficRoute:
+              ListenerArns:
+                - !Ref TestListener
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+
+  # EventBridge Rule to trigger pipeline on ECR push
+  ECRPushEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: !Sub Rule to trigger pipeline when a new image is pushed to ${AppName} ECR repo
+      EventPattern:
+        source:
+          - aws.ecr
+        detail-type:
+          - ECR Image Action
+        detail:
+          action-type:
+            - PUSH
+          result:
+            - SUCCESS
+          repository-name:
+            - !Ref AppName
+          image-tag:
+            - latest
+      Targets:
+        - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${AppName}-Pipeline
+          Id: CodePipelineTarget
+          RoleArn: !GetAtt EventBridgePipelineRole.Arn
+
+  EventBridgePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [events.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      Policies:
+        - PolicyName: StartPipeline
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'codepipeline:StartPipelineExecution'
+                Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${AppName}-Pipeline
+      Path: /
+
+Outputs:
+  # Required for Pipeline
+  ArtifactBucketName:
+    Description: 'S3 Artifact Bucket Name'
+    Value: !Ref ArtifactBucket
+    Export:
+      Name: !Sub ${AppName}-ArtifactBucketName
+
+  CodePipelineServiceRoleArn:
+    Description: 'CodePipeline Service Role ARN'
+    Value: !GetAtt CodePipelineServiceRole.Arn
+    Export:
+      Name: !Sub ${AppName}-CodePipelineServiceRoleArn
+
+  CodeDeployAppName:
+    Description: 'CodeDeploy Application Name'
+    Value: !Ref CodeDeployApplication
+    Export:
+      Name: !Sub ${AppName}-CodeDeployAppName
+
+  CodeDeployDeploymentGroupName:
+    Description: 'CodeDeploy Deployment Group Name'
+    Value: !Ref CodeDeployDeploymentGroup
+    Export:
+      Name: !Sub ${AppName}-CodeDeployDeploymentGroupName
+
+  # Additional exports for Service Stack
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${AppName}-VPCId
+
+  ECSClusterName:
+    Description: ECS Cluster Name
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub ${AppName}-ECSClusterName
+
+  ALBArn:
+    Description: Application Load Balancer ARN
+    Value: !Ref ALB
+    Export:
+      Name: !Sub ${AppName}-ALBArn
+
+  ALBDNSName:
+    Description: ALB DNS Name
+    Value: !GetAtt ALB.DNSName
+    Export:
+      Name: !Sub ${AppName}-ALBDNSName
+
+  ALBSecurityGroupId:
+    Description: ALB Security Group ID
+    Value: !Ref ALBSecurityGroup
+    Export:
+      Name: !Sub ${AppName}-ALBSecurityGroupId
+
+  ECSSecurityGroupId:
+    Description: ECS Security Group ID
+    Value: !Ref ECSSecurityGroup
+    Export:
+      Name: !Sub ${AppName}-ECSSecurityGroupId
+
+  PrivateSubnet1Id:
+    Description: Private Subnet 1 ID
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub ${AppName}-PrivateSubnet1Id
+
+  PrivateSubnet2Id:
+    Description: Private Subnet 2 ID
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub ${AppName}-PrivateSubnet2Id
+
+  ECRRepositoryURI:
+    Description: ECR Repository URI
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AppName}
+    Export:
+      Name: !Sub ${AppName}-ECRRepositoryURI
+
+  ECSTaskExecutionRoleArn:
+    Description: ECS Task Execution Role ARN
+    Value: !GetAtt ECSTaskExecutionRole.Arn
+    Export:
+      Name: !Sub ${AppName}-ECSTaskExecutionRoleArn
+
+  ECSTaskRoleArn:
+    Description: ECS Task Role ARN
+    Value: !GetAtt ECSTaskRole.Arn
+    Export:
+      Name: !Sub ${AppName}-ECSTaskRoleArn
+
+  ALBTargetGroupArn:
+    Description: ALB Target Group ARN
+    Value: !Ref ALBTargetGroup
+    Export:
+      Name: !Sub ${AppName}-ALBTargetGroupArn
+
+  ALBGreenTargetGroupArn:
+    Description: ALB Green Target Group ARN
+    Value: !Ref ALBGreenTargetGroup
+    Export:
+      Name: !Sub ${AppName}-ALBGreenTargetGroupArn
+
+  CloudWatchLogGroupName:
+    Description: CloudWatch Log Group Name
+    Value: !Ref CloudWatchLogGroup
+    Export:
+      Name: !Sub ${AppName}-CloudWatchLogGroupName
+
+  GitHubOIDCRoleArn:
+    Description: GitHub OIDC Role ARN
+    Value: !GetAtt GitHubOIDCRole.Arn
+    Export:
+      Name: !Sub ${AppName}-GitHubOIDCRoleArn
+
+  ALBTargetGroupName:
+    Description: ALB Target Group Name
+    Value: !GetAtt ALBTargetGroup.TargetGroupName
+    Export:
+      Name: !Sub ${AppName}-ALBTargetGroupName
+
+  ALBGreenTargetGroupName:
+    Description: ALB Green Target Group Name
+    Value: !GetAtt ALBGreenTargetGroup.TargetGroupName
+    Export:
+      Name: !Sub ${AppName}-ALBGreenTargetGroupName
+
+  ALBListenerArn:
+    Description: ALB Listener ARN
+    Value: !Ref ALBListener
+    Export:
+      Name: !Sub ${AppName}-ALBListenerArn
+
+  TestListenerArn:
+    Description: Test Listener ARN
+    Value: !Ref TestListener
+    Export:
+      Name: !Sub ${AppName}-TestListenerArn
+
+  CodeDeployServiceRoleArn:
+    Description: CodeDeploy Service Role ARN
+    Value: !GetAtt CodeDeployServiceRole.Arn
+    Export:
+      Name: !Sub ${AppName}-CodeDeployServiceRoleArn
