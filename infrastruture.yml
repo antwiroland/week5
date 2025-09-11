@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'ECS Fargate CI/CD Lab Infrastructure with IAM roles, ALB, ECS, ECR, and S3 artifacts'
+Description: 'ECS Fargate CI/CD Lab Infrastructure'
 
 Parameters:
   AppName:
@@ -7,10 +7,9 @@ Parameters:
     Default: 'java-full-stack'
 
 Resources:
-  ##############################
+  #########################
   # IAM ROLES
-  ##############################
-  # ECS Task Execution Role
+  #########################
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -25,7 +24,6 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  # ECS Task Role
   ECSTaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -38,7 +36,6 @@ Resources:
               Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
 
-  # CodePipeline Service Role (inline policy)
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -51,7 +48,7 @@ Resources:
               Service: codepipeline.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: CodePipelineFullAccessInline
+        - PolicyName: CodePipelineInlinePolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -92,7 +89,6 @@ Resources:
                   - ecr:PutImage
                 Resource: "*"
 
-  # CodeDeploy Role (inline policy)
   CodeDeployRole:
     Type: AWS::IAM::Role
     Properties:
@@ -105,7 +101,7 @@ Resources:
               Service: codedeploy.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: CodeDeployECSAccess
+        - PolicyName: CodeDeployECSInlinePolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -123,9 +119,9 @@ Resources:
                   - elasticloadbalancing:ModifyRule
                 Resource: "*"
 
-  ##############################
+  #########################
   # NETWORKING
-  ##############################
+  #########################
   VPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -191,9 +187,9 @@ Resources:
         - Key: Name
           Value: !Sub '${AppName}-PrivateSubnet2'
 
-  ##############################
-  # ELB / SECURITY GROUPS
-  ##############################
+  #########################
+  # SECURITY GROUPS & ALB
+  #########################
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -233,9 +229,25 @@ Resources:
       SecurityGroups:
         - !Ref ALBSecurityGroup
 
-  ##############################
-  # ECS CLUSTER / ECR
-  ##############################
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${AppName}-TG'
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !Ref VPC
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: '200'
+
+  #########################
+  # ECS / ECR
+  #########################
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -249,18 +261,18 @@ Resources:
       ImageScanningConfiguration:
         ScanOnPush: true
 
-  ##############################
+  #########################
   # CLOUDWATCH LOGS
-  ##############################
+  #########################
   CloudWatchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/ecs/${AppName}'
       RetentionInDays: 7
 
-  ##############################
+  #########################
   # S3 ARTIFACT BUCKET
-  ##############################
+  #########################
   ArtifactBucket:
     Type: AWS::S3::Bucket
     Properties:
