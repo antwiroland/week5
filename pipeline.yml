@@ -1,11 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CodePipeline for ECS Blue-Green Deployment - Hardcoded values'
+Description: 'CodePipeline for ECS Blue-Green Deployment - Hardcoded Values'
 
 Parameters:
   DeploymentTimestamp:
     Type: String
     Default: "default"
-    Description: 'Timestamp to force changeset creation'
+    Description: 'Timestamp to force pipeline changes'
 
 Resources:
   CodePipeline:
@@ -54,7 +54,7 @@ Resources:
 Outputs:
   PipelineName:
     Description: 'CodePipeline Name'
-    Value: !Ref CodePipeline
+    Value: java-full-stack-Pipeline
   DeploymentTimestamp:
     Description: 'Timestamp of last deployment'
     Value: !Ref DeploymentTimestamp
