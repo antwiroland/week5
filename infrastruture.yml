@@ -7,14 +7,14 @@ Parameters:
     Default: 'java-full-stack'
 
 Resources:
-  # Example CodeDeploy ECS Application
+  # CodeDeploy ECS Application
   CodeDeployApplication:
     Type: AWS::CodeDeploy::Application
     Properties:
       ApplicationName: !Sub '${AppName}-CodeDeployApp'
       ComputePlatform: ECS
 
-  # Example CodeDeploy ECS Deployment Group
+  # CodeDeploy ECS Deployment Group
   CodeDeployDeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
     Properties:
@@ -45,7 +45,7 @@ Resources:
               ListenerArns:
                 - !Sub 'arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/app/${AppName}-ALB/...'
 
-  # Example IAM Role for CodeDeploy
+  # IAM Role for CodeDeploy (INLINE POLICY)
   CodeDeployRole:
     Type: AWS::IAM::Role
     Properties:
@@ -59,10 +59,26 @@ Resources:
                 - codedeploy.amazonaws.com
             Action:
               - sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForECS
+      Policies:
+        - PolicyName: CodeDeployECSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:CreateTaskSet
+                  - ecs:UpdateService
+                  - ecs:DeleteTaskSet
+                  - ecs:DescribeServices
+                  - ecs:DescribeTaskSets
+                  - elasticloadbalancing:DescribeTargetGroups
+                  - elasticloadbalancing:DescribeListeners
+                  - elasticloadbalancing:ModifyListener
+                  - elasticloadbalancing:DescribeRules
+                  - elasticloadbalancing:ModifyRule
+                Resource: "*"
 
-  # Example IAM Role for CodePipeline
+  # IAM Role for CodePipeline
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
