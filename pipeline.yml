@@ -14,10 +14,10 @@ Resources:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       Name: !Sub ${AppName}-Pipeline
-      RoleArn: !ImportValue 'java-full-stack-CodePipelineServiceRoleArn'
+      RoleArn: !ImportValue 'arn:aws:iam::481980074895:role/cloudformationlabInfrastrur-CodePipelineServiceRole-FNqAgP836fhf'
       ArtifactStore:
         Type: S3
-        Location: !ImportValue 'java-full-stack-ArtifactBucketName'
+        Location: !ImportValue 'eu-central-1'
       Stages:
         - Name: Source
           Actions:
@@ -28,7 +28,7 @@ Resources:
                 Version: '1'
                 Provider: S3
               Configuration:
-                S3Bucket: !ImportValue 'java-full-stack-ArtifactBucketName'
+                S3Bucket: !ImportValue 'cloudformationlabinfrastrure-artifactbucket-ml8yiqcnwtcp '
                 S3ObjectKey: deployment-artifacts/latest.zip
                 PollForSourceChanges: false
               OutputArtifacts:
