@@ -14,10 +14,10 @@ Resources:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       Name: !Sub ${AppName}-Pipeline
-      RoleArn: !ImportValue 'arn:aws:iam::481980074895:role/cloudformationlabInfrastrur-CodePipelineServiceRole-FNqAgP836fhf'
+      RoleArn: !ImportValue 'java-full-stack-CodePipelineServiceRoleArn'
       ArtifactStore:
         Type: S3
-        Location: !ImportValue 'eu-central-1'
+        Location: !ImportValue 'java-full-stack-ArtifactBucketName'
       Stages:
         - Name: Source
           Actions:
@@ -28,7 +28,7 @@ Resources:
                 Version: '1'
                 Provider: S3
               Configuration:
-                S3Bucket: !ImportValue 'cloudformationlabinfrastrure-artifactbucket-ml8yiqcnwtcp '
+                S3Bucket: !ImportValue 'java-full-stack-ArtifactBucketName'
                 S3ObjectKey: deployment-artifacts/latest.zip
                 PollForSourceChanges: false
               OutputArtifacts:
@@ -43,8 +43,8 @@ Resources:
                 Version: '1'
                 Provider: CodeDeployToECS
               Configuration:
-                ApplicationName: !ImportValue 'arn:aws:iam::481980074895:role/cloudformationlabInfrastrur-CodePipelineServiceRole-FNqAgP836fhf'
-                DeploymentGroupName: !ImportValue 'arn:aws:iam::481980074895:role/cloudformationlabInfrastrur-CodePipelineServiceRole-FNqAgP836fhf'
+                ApplicationName: !ImportValue 'java-full-stack-CodeDeployAppName'
+                DeploymentGroupName: !ImportValue 'java-full-stack-CodeDeployDeploymentGroupName'
                 TaskDefinitionTemplateArtifact: SourceArtifact
                 TaskDefinitionTemplatePath: "taskdef.json"
                 AppSpecTemplateArtifact: SourceArtifact
