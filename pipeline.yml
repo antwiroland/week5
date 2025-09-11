@@ -27,8 +27,8 @@ Resources:
               ActionTypeId:
                 Category: Source
                 Owner: AWS
-                Version: '1'
                 Provider: S3
+                Version: '1'
               Configuration:
                 S3Bucket: !ImportValue
                   !Sub '${AppName}-ArtifactBucketName'
@@ -37,14 +37,15 @@ Resources:
               OutputArtifacts:
                 - Name: SourceArtifact
               RunOrder: 1
+
         - Name: Deploy
           Actions:
-            - Name: ECSDeploy
+            - Name: ECSBlueGreenDeploy
               ActionTypeId:
                 Category: Deploy
                 Owner: AWS
-                Version: '1'
                 Provider: CodeDeployToECS
+                Version: '1'
               Configuration:
                 ApplicationName: !ImportValue
                   !Sub '${AppName}-CodeDeployAppName'
