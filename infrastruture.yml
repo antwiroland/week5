@@ -121,7 +121,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
       Policies:
-        - PolicyName: TaggingPermissions
+        - PolicyName: ExtendedTaggingPermissions
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -135,6 +135,14 @@ Resources:
                   - 'ecs:UntagResource'
                   - 'tag:TagResources'
                   - 'tag:UntagResources'
+                  - 'resource-groups:Tag'
+                  - 'resource-groups:Untag'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'ec2:Describe*'
+                  - 'elasticloadbalancing:Describe*'
+                  - 'ecs:Describe*'
                 Resource: '*'
       Path: /
 
@@ -226,7 +234,7 @@ Resources:
                 Resource: !Sub 'arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${AppName}-Pipeline'
       Path: /
 
-  # Networking
+  # Networking (same as before)
   VPC:
     Type: AWS::EC2::VPC
     Properties:
