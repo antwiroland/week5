@@ -1,20 +1,18 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CodePipeline for ECS Blue-Green Deployment'
+Description: 'CodePipeline for ECS Blue-Green Deployment - Hardcoded values'
 
 Parameters:
-  AppName:
-    Type: String
-    Default: 'java-full-stack'
   DeploymentTimestamp:
     Type: String
     Default: "default"
+    Description: 'Timestamp to force changeset creation'
 
 Resources:
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       Name: java-full-stack-Pipeline
-      RoleArn: arn:aws:iam::481980074895:role/cloudformationlabInfrastrure-CodePipelineServiceRole-XXXXX
+      RoleArn: arn:aws:iam::481980074895:role/cloudformationlabInfrastrure-CodePipelineServiceRole-w2BSTbgsWmPM
       ArtifactStore:
         Type: S3
         Location: cloudformationlabinfrastrure-artifactbucket-icilhdel8q4w
@@ -46,9 +44,9 @@ Resources:
                 ApplicationName: java-full-stack-CodeDeployApp
                 DeploymentGroupName: java-full-stack-CodeDeployDeploymentGroup
                 TaskDefinitionTemplateArtifact: SourceArtifact
-                TaskDefinitionTemplatePath: "taskdef.json"
+                TaskDefinitionTemplatePath: taskdef.json
                 AppSpecTemplateArtifact: SourceArtifact
-                AppSpecTemplatePath: "appspec.yml"
+                AppSpecTemplatePath: appspec.yml
               InputArtifacts:
                 - Name: SourceArtifact
               RunOrder: 1
