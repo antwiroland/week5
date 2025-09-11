@@ -5,19 +5,36 @@ Parameters:
   AppName:
     Type: String
     Default: 'java-full-stack'
-    Description: Application name used to name resources
+    Description: 'Application name used to name resources'
   GitHubRepoName:
     Type: String
     Default: 'ecs-cicd-lab-app'
-    Description: GitHub repository name
+    Description: 'GitHub repository name'
   GitHubRepoOwner:
     Type: String
     Default: 'ibra15-cyber'
-    Description: GitHub repository owner
+    Description: 'Owner of the GitHub repository'
+  DeploymentTimestamp:
+    Type: String
+    Default: "default"
+    Description: 'Timestamp to force changeset creation'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Application Configuration"
+        Parameters:
+          - AppName
+      - Label:
+          default: "GitHub Configuration"
+        Parameters:
+          - GitHubRepoName
+          - GitHubRepoOwner
 
 Resources:
 
-  # --- IAM Roles ---
+  # --- IAM ROLES ---
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -30,6 +47,7 @@ Resources:
             Action: ['sts:AssumeRole']
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Path: /
 
   ECSTaskRole:
     Type: AWS::IAM::Role
@@ -41,6 +59,7 @@ Resources:
             Principal:
               Service: [ecs-tasks.amazonaws.com]
             Action: ['sts:AssumeRole']
+      Path: /
 
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
@@ -53,7 +72,8 @@ Resources:
               Service: [codepipeline.amazonaws.com]
             Action: ['sts:AssumeRole']
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Path: /
 
   CodeDeployRole:
     Type: AWS::IAM::Role
@@ -67,6 +87,7 @@ Resources:
             Action: ['sts:AssumeRole']
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
+      Path: /
 
   # --- VPC & Networking ---
   VPC:
@@ -77,85 +98,197 @@ Resources:
       EnableDnsSupport: true
       Tags:
         - Key: Name
-          Value: !Sub '${AppName}-VPC'
+          Value: !Sub ${AppName}-VPC
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub '${AppName}-IGW'
+          Value: !Sub ${AppName}-IGW
 
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
 
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
       CidrBlock: 10.0.1.0/24
       MapPublicIpOnLaunch: true
-      AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub '${AppName}-PublicSubnet1'
+          Value: !Sub ${AppName}-PublicSubnet-AZ1
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
       CidrBlock: 10.0.2.0/24
       MapPublicIpOnLaunch: true
-      AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub '${AppName}-PublicSubnet2'
+          Value: !Sub ${AppName}-PublicSubnet-AZ2
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: 10.0.3.0/24
       AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.3.0/24
       Tags:
         - Key: Name
-          Value: !Sub '${AppName}-PrivateSubnet1'
+          Value: !Sub ${AppName}-PrivateSubnet-AZ1
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: 10.0.4.0/24
       AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.4.0/24
       Tags:
         - Key: Name
-          Value: !Sub '${AppName}-PrivateSubnet2'
+          Value: !Sub ${AppName}-PrivateSubnet-AZ2
 
-  # --- Security Groups ---
+  NatGateway1EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-NAT1-EIP
+
+  NatGateway2EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-NAT2-EIP
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway1EIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-NAT-GW-AZ1
+
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway2EIP.AllocationId
+      SubnetId: !Ref PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-NAT-GW-AZ2
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-Public-RT
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-Private-RT-AZ1
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-Private-RT-AZ2
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  PrivateRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable1
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable2
+
+  # --- SECURITY GROUPS ---
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: ALB SG
+      GroupName: !Sub ${AppName}-ALB-SG
+      GroupDescription: Security group for ALB
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
 
   ECSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: ECS SG
+      GroupName: !Sub ${AppName}-ECS-SG
+      GroupDescription: Security group for ECS tasks
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 8080
           ToPort: 8080
           SourceSecurityGroupId: !Ref ALBSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
 
   # --- ECR ---
   ECRRepository:
@@ -166,18 +299,19 @@ Resources:
       ImageScanningConfiguration:
         ScanOnPush: true
 
-  # --- ECS Cluster ---
+  # --- ECS ---
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: !Sub '${AppName}-Cluster'
+      ClusterName: !Sub ${AppName}-Cluster
 
   # --- ALB ---
   ALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub '${AppName}-ALB-${AWS::StackName}'
+      Name: !Sub ${AppName}-ALB
       Scheme: internet-facing
+      Type: application
       Subnets:
         - !Ref PublicSubnet1
         - !Ref PublicSubnet2
@@ -187,13 +321,19 @@ Resources:
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub '${AppName}-TG-${AWS::StackName}'
+      Name: !Sub '${AppName}-TG'   # Shortened to <=32 chars
       Port: 80
       Protocol: HTTP
       TargetType: ip
       VpcId: !Ref VPC
       HealthCheckPath: /
       HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: '200'
 
   ALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -205,11 +345,11 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup
 
-  # --- CloudWatch Logs ---
+  # --- CloudWatch ---
   CloudWatchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/ecs/${AppName}'
+      LogGroupName: !Sub /ecs/${AppName}
       RetentionInDays: 7
 
   # --- S3 Artifact Bucket ---
@@ -220,47 +360,76 @@ Resources:
         Status: Enabled
 
 Outputs:
-  ECSTaskExecutionRoleArn:
-    Value: !GetAtt ECSTaskExecutionRole.Arn
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
     Export:
-      Name: !Sub '${AppName}-ECSTaskExecutionRoleArn'
-
-  ECSTaskRoleArn:
-    Value: !GetAtt ECSTaskRole.Arn
-    Export:
-      Name: !Sub '${AppName}-ECSTaskRoleArn'
-
+      Name: !Sub ${AppName}-VPCId
   ECSClusterName:
+    Description: ECS Cluster Name
     Value: !Ref ECSCluster
     Export:
-      Name: !Sub '${AppName}-ECSClusterName'
-
+      Name: !Sub ${AppName}-ECSClusterName
+  ALBArn:
+    Description: ALB ARN
+    Value: !Ref ALB
+    Export:
+      Name: !Sub ${AppName}-ALBArn
+  ALBDNSName:
+    Description: ALB DNS Name
+    Value: !GetAtt ALB.DNSName
+    Export:
+      Name: !Sub ${AppName}-ALBDNSName
+  ALBSecurityGroupId:
+    Description: ALB Security Group ID
+    Value: !Ref ALBSecurityGroup
+    Export:
+      Name: !Sub ${AppName}-ALBSecurityGroupId
   ECSSecurityGroupId:
+    Description: ECS Security Group ID
     Value: !Ref ECSSecurityGroup
     Export:
-      Name: !Sub '${AppName}-ECSSecurityGroupId'
-
-  CodePipelineServiceRoleArn:
-    Value: !GetAtt CodePipelineServiceRole.Arn
-    Export:
-      Name: !Sub '${AppName}-CodePipelineServiceRoleArn'
-
-  CodeDeployRoleArn:
-    Value: !GetAtt CodeDeployRole.Arn
-    Export:
-      Name: !Sub '${AppName}-CodeDeployRoleArn'
-
-  ArtifactBucketName:
-    Value: !Ref ArtifactBucket
-    Export:
-      Name: !Sub '${AppName}-ArtifactBucketName'
-
+      Name: !Sub ${AppName}-ECSSecurityGroupId
   PrivateSubnet1Id:
+    Description: Private Subnet 1 ID
     Value: !Ref PrivateSubnet1
     Export:
-      Name: !Sub '${AppName}-PrivateSubnet1Id'
-
+      Name: !Sub ${AppName}-PrivateSubnet1Id
   PrivateSubnet2Id:
+    Description: Private Subnet 2 ID
     Value: !Ref PrivateSubnet2
     Export:
-      Name: !Sub '${AppName}-PrivateSubnet2Id'
+      Name: !Sub ${AppName}-PrivateSubnet2Id
+  ECRRepositoryURI:
+    Description: ECR Repository URI
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AppName}
+    Export:
+      Name: !Sub ${AppName}-ECRRepositoryURI
+  ECSTaskExecutionRoleArn:
+    Description: ECS Task Execution Role ARN
+    Value: !GetAtt ECSTaskExecutionRole.Arn
+    Export:
+      Name: !Sub ${AppName}-ECSTaskExecutionRoleArn
+  ECSTaskRoleArn:
+    Description: ECS Task Role ARN
+    Value: !GetAtt ECSTaskRole.Arn
+    Export:
+      Name: !Sub ${AppName}-ECSTaskRoleArn
+  ALBTargetGroupArn:
+    Description: ALB Target Group ARN
+    Value: !Ref ALBTargetGroup
+    Export:
+      Name: !Sub ${AppName}-ALBTargetGroupArn
+  CloudWatchLogGroupName:
+    Description: CloudWatch Log Group Name
+    Value: !Ref CloudWatchLogGroup
+    Export:
+      Name: !Sub ${AppName}-CloudWatchLogGroupName
+  ArtifactBucketName:
+    Description: S3 Artifact Bucket Name
+    Value: !Ref ArtifactBucket
+    Export:
+      Name: !Sub ${AppName}-ArtifactBucketName
+  DeploymentTimestamp:
+    Description: Timestamp of last deployment
+    Value: !Ref DeploymentTimestamp
