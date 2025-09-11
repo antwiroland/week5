@@ -1,29 +1,16 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CodePipeline for ECS Deployment'
+Description: 'CodePipeline for ECS Blue-Green Deployment'
 
 Parameters:
   AppName:
     Type: String
     Default: 'java-full-stack'
+  DeploymentTimestamp:
+    Type: String
+    Default: "default"
 
 Resources:
-  ECSService:
-    Type: AWS::ECS::Service
-    Properties:
-      ServiceName: !Sub '${AppName}-Service'
-      Cluster: !ImportValue '${AppName}-ECSClusterName'
-      TaskDefinition: !Ref ECSTaskDefinition
-      DesiredCount: 1
-      LaunchType: FARGATE
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue '${AppName}-PrivateSubnet1'
-            - !ImportValue '${AppName}-PrivateSubnet2'
-          SecurityGroups:
-            - !ImportValue '${AppName}-ECSSecurityGroupId'
-          AssignPublicIp: ENABLED
-
+  # ECS Task Definition
   ECSTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -33,20 +20,46 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !ImportValue '${AppName}-ECSTaskExecutionRoleArn'
-      TaskRoleArn: !ImportValue '${AppName}-ECSTaskRoleArn'
+      ExecutionRoleArn: !ImportValue
+        !Sub '${AppName}-ECSTaskExecutionRoleArn'
+      TaskRoleArn: !ImportValue
+        !Sub '${AppName}-ECSTaskRoleArn'
       ContainerDefinitions:
         - Name: !Ref AppName
           Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AppName}:latest'
           PortMappings:
             - ContainerPort: 8080
 
+  # ECS Service
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${AppName}-Service'
+      Cluster: !ImportValue
+        !Sub '${AppName}-ECSClusterName'
+      TaskDefinition: !Ref ECSTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              !Sub '${AppName}-PrivateSubnet1Id'
+            - !ImportValue
+              !Sub '${AppName}-PrivateSubnet2Id'
+          SecurityGroups:
+            - !ImportValue
+              !Sub '${AppName}-ECSSecurityGroupId'
+          AssignPublicIp: ENABLED
+
+  # CodeDeploy Deployment Group
   CodeDeployDeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
     Properties:
       ApplicationName: !Sub '${AppName}-CodeDeployApp'
       DeploymentGroupName: !Sub '${AppName}-DeploymentGroup'
-      ServiceRoleArn: !ImportValue '${AppName}-CodeDeployRoleArn'
+      ServiceRoleArn: !ImportValue
+        !Sub '${AppName}-CodeDeployRoleArn'
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
         DeploymentOption: WITH_TRAFFIC_CONTROL
@@ -56,16 +69,20 @@ Resources:
           WaitTimeInMinutes: 5
       ECSService:
         - ServiceName: !Ref ECSService
-          ClusterName: !ImportValue '${AppName}-ECSClusterName'
+          ClusterName: !ImportValue
+            !Sub '${AppName}-ECSClusterName'
 
+  # CodePipeline
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       Name: !Sub '${AppName}-Pipeline'
-      RoleArn: !ImportValue '${AppName}-CodePipelineServiceRoleArn'
+      RoleArn: !ImportValue
+        !Sub '${AppName}-CodePipelineServiceRoleArn'
       ArtifactStore:
         Type: S3
-        Location: !ImportValue '${AppName}-ArtifactBucketName'
+        Location: !ImportValue
+          !Sub '${AppName}-ArtifactBucketName'
       Stages:
         - Name: Source
           Actions:
@@ -76,7 +93,8 @@ Resources:
                 Version: '1'
                 Provider: S3
               Configuration:
-                S3Bucket: !ImportValue '${AppName}-ArtifactBucketName'
+                S3Bucket: !ImportValue
+                  !Sub '${AppName}-ArtifactBucketName'
                 S3ObjectKey: deployment-artifacts/latest.zip
                 PollForSourceChanges: false
               OutputArtifacts:
@@ -105,3 +123,6 @@ Outputs:
   PipelineName:
     Description: CodePipeline Name
     Value: !Ref CodePipeline
+  DeploymentTimestamp:
+    Description: Timestamp of last deployment
+    Value: !Ref DeploymentTimestamp
