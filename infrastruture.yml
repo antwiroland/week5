@@ -567,7 +567,7 @@ Resources:
             TestTrafficRoute:
               ListenerArns:
                 - !Ref TestListener
-      EcsServices:
+      ECSServices:
         - ServiceName: !Sub ${AppName}-Service
           ClusterName: !Ref ECSCluster
       AutoRollbackConfiguration:
