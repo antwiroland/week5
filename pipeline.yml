@@ -23,12 +23,12 @@ Resources:
       Stages:
         - Name: Source
           Actions:
-            - Name: S3Source
+            - Name: S3-Artifacts-Source
               ActionTypeId:
                 Category: Source
                 Owner: AWS
-                Provider: S3
                 Version: '1'
+                Provider: S3
               Configuration:
                 S3Bucket: !ImportValue
                   !Sub '${AppName}-ArtifactBucketName'
@@ -37,15 +37,14 @@ Resources:
               OutputArtifacts:
                 - Name: SourceArtifact
               RunOrder: 1
-
         - Name: Deploy
           Actions:
-            - Name: ECSBlueGreenDeploy
+            - Name: ECS-Deploy
               ActionTypeId:
                 Category: Deploy
                 Owner: AWS
-                Provider: CodeDeployToECS
                 Version: '1'
+                Provider: CodeDeployToECS
               Configuration:
                 ApplicationName: !ImportValue
                   !Sub '${AppName}-CodeDeployAppName'
