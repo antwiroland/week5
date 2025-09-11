@@ -1,127 +1,74 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'ECS Fargate CI/CD Lab Infrastructure'
+Description: 'ECS Fargate CI/CD Lab - Core Infrastructure'
 
 Parameters:
   AppName:
     Type: String
     Default: 'java-full-stack'
+    Description: Application name used to name resources
+  GitHubRepoName:
+    Type: String
+    Default: 'ecs-cicd-lab-app'
+    Description: GitHub repository name
+  GitHubRepoOwner:
+    Type: String
+    Default: 'ibra15-cyber'
+    Description: GitHub repository owner
 
 Resources:
-  #########################
-  # IAM ROLES
-  #########################
+
+  # --- IAM Roles ---
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${AppName}-ECSTaskExecutionRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
-              Service: ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
+              Service: [ecs-tasks.amazonaws.com]
+            Action: ['sts:AssumeRole']
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
   ECSTaskRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${AppName}-ECSTaskRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
-              Service: ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
+              Service: [ecs-tasks.amazonaws.com]
+            Action: ['sts:AssumeRole']
 
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${AppName}-CodePipelineServiceRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
-              Service: codepipeline.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CodePipelineInlinePolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:GetObjectVersion
-                  - s3:PutObject
-                  - s3:GetBucketVersioning
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - codebuild:BatchGetBuilds
-                  - codebuild:StartBuild
-                  - codedeploy:CreateDeployment
-                  - codedeploy:GetDeployment
-                  - codedeploy:GetDeploymentConfig
-                  - codedeploy:GetApplication
-                  - codedeploy:GetApplicationRevision
-                  - codedeploy:RegisterApplicationRevision
-                  - ecs:DescribeServices
-                  - ecs:DescribeTaskDefinition
-                  - iam:PassRole
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - ecr:GetAuthorizationToken
-                  - ecr:BatchCheckLayerAvailability
-                  - ecr:GetDownloadUrlForLayer
-                  - ecr:GetRepositoryPolicy
-                  - ecr:DescribeRepositories
-                  - ecr:ListImages
-                  - ecr:DescribeImages
-                  - ecr:BatchGetImage
-                  - ecr:InitiateLayerUpload
-                  - ecr:UploadLayerPart
-                  - ecr:CompleteLayerUpload
-                  - ecr:PutImage
-                Resource: "*"
+              Service: [codepipeline.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
 
   CodeDeployRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${AppName}-CodeDeployRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
-              Service: codedeploy.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CodeDeployECSInlinePolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecs:CreateTaskSet
-                  - ecs:UpdateService
-                  - ecs:DeleteTaskSet
-                  - ecs:DescribeServices
-                  - ecs:DescribeTaskSets
-                  - elasticloadbalancing:DescribeTargetGroups
-                  - elasticloadbalancing:DescribeListeners
-                  - elasticloadbalancing:ModifyListener
-                  - elasticloadbalancing:DescribeRules
-                  - elasticloadbalancing:ModifyRule
-                Resource: "*"
+              Service: [codedeploy.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
 
-  #########################
-  # NETWORKING
-  #########################
+  # --- VPC & Networking ---
   VPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -187,41 +134,49 @@ Resources:
         - Key: Name
           Value: !Sub '${AppName}-PrivateSubnet2'
 
-  #########################
-  # SECURITY GROUPS & ALB
-  #########################
+  # --- Security Groups ---
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: ALB security group
+      GroupDescription: ALB SG
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
 
   ECSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: ECS tasks security group
+      GroupDescription: ECS SG
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 8080
           ToPort: 8080
           SourceSecurityGroupId: !Ref ALBSecurityGroup
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
 
+  # --- ECR ---
+  ECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AppName
+      ImageTagMutability: MUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+  # --- ECS Cluster ---
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub '${AppName}-Cluster'
+
+  # --- ALB ---
   ALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub '${AppName}-ALB'
+      Name: !Sub '${AppName}-ALB-${AWS::StackName}'
       Scheme: internet-facing
       Subnets:
         - !Ref PublicSubnet1
@@ -232,105 +187,80 @@ Resources:
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub '${AppName}-TG'
+      Name: !Sub '${AppName}-TG-${AWS::StackName}'
       Port: 80
       Protocol: HTTP
       TargetType: ip
       VpcId: !Ref VPC
       HealthCheckPath: /
-      HealthCheckIntervalSeconds: 30
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 3
-      Matcher:
-        HttpCode: '200'
+      HealthCheckProtocol: HTTP
 
-  #########################
-  # ECS / ECR
-  #########################
-  ECSCluster:
-    Type: AWS::ECS::Cluster
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      ClusterName: !Sub '${AppName}-Cluster'
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
 
-  ECRRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: !Ref AppName
-      ImageTagMutability: MUTABLE
-      ImageScanningConfiguration:
-        ScanOnPush: true
-
-  #########################
-  # CLOUDWATCH LOGS
-  #########################
+  # --- CloudWatch Logs ---
   CloudWatchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/ecs/${AppName}'
       RetentionInDays: 7
 
-  #########################
-  # S3 ARTIFACT BUCKET
-  #########################
+  # --- S3 Artifact Bucket ---
   ArtifactBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub '${AppName}-artifact-bucket-${AWS::AccountId}-${AWS::Region}'
       VersioningConfiguration:
         Status: Enabled
 
 Outputs:
-  ECSClusterName:
-    Description: ECS Cluster Name
-    Value: !Ref ECSCluster
-    Export:
-      Name: !Sub '${AppName}-ECSClusterName'
-
-  ALBArn:
-    Description: ALB ARN
-    Value: !Ref ALB
-    Export:
-      Name: !Sub '${AppName}-ALBArn'
-
-  ALBDNSName:
-    Description: ALB DNS Name
-    Value: !GetAtt ALB.DNSName
-    Export:
-      Name: !Sub '${AppName}-ALBDNSName'
-
-  ECRRepositoryURI:
-    Description: ECR Repository URI
-    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AppName}'
-    Export:
-      Name: !Sub '${AppName}-ECRRepositoryURI'
-
   ECSTaskExecutionRoleArn:
-    Description: ECS Task Execution Role ARN
     Value: !GetAtt ECSTaskExecutionRole.Arn
     Export:
       Name: !Sub '${AppName}-ECSTaskExecutionRoleArn'
 
   ECSTaskRoleArn:
-    Description: ECS Task Role ARN
     Value: !GetAtt ECSTaskRole.Arn
     Export:
       Name: !Sub '${AppName}-ECSTaskRoleArn'
 
+  ECSClusterName:
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub '${AppName}-ECSClusterName'
+
+  ECSSecurityGroupId:
+    Value: !Ref ECSSecurityGroup
+    Export:
+      Name: !Sub '${AppName}-ECSSecurityGroupId'
+
   CodePipelineServiceRoleArn:
-    Description: CodePipeline Service Role ARN
     Value: !GetAtt CodePipelineServiceRole.Arn
     Export:
       Name: !Sub '${AppName}-CodePipelineServiceRoleArn'
 
   CodeDeployRoleArn:
-    Description: CodeDeploy Role ARN
     Value: !GetAtt CodeDeployRole.Arn
     Export:
       Name: !Sub '${AppName}-CodeDeployRoleArn'
 
   ArtifactBucketName:
-    Description: S3 Artifact Bucket Name
     Value: !Ref ArtifactBucket
     Export:
       Name: !Sub '${AppName}-ArtifactBucketName'
+
+  PrivateSubnet1Id:
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub '${AppName}-PrivateSubnet1Id'
+
+  PrivateSubnet2Id:
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub '${AppName}-PrivateSubnet2Id'
