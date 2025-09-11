@@ -14,10 +14,12 @@ Resources:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       Name: !Sub ${AppName}-Pipeline
-      RoleArn: !ImportValue !Sub ${AppName}-CodePipelineServiceRoleArn
+      RoleArn: !ImportValue
+        !Sub '${AppName}-CodePipelineServiceRoleArn'
       ArtifactStore:
         Type: S3
-        Location: !ImportValue !Sub ${AppName}-ArtifactBucketName
+        Location: !ImportValue
+          !Sub '${AppName}-ArtifactBucketName'
       Stages:
         - Name: Source
           Actions:
@@ -28,7 +30,8 @@ Resources:
                 Version: '1'
                 Provider: S3
               Configuration:
-                S3Bucket: !ImportValue !Sub ${AppName}-ArtifactBucketName
+                S3Bucket: !ImportValue
+                  !Sub '${AppName}-ArtifactBucketName'
                 S3ObjectKey: deployment-artifacts/latest.zip
                 PollForSourceChanges: false
               OutputArtifacts:
@@ -43,8 +46,10 @@ Resources:
                 Version: '1'
                 Provider: CodeDeployToECS
               Configuration:
-                ApplicationName: !ImportValue !Sub ${AppName}-CodeDeployAppName
-                DeploymentGroupName: !ImportValue !Sub ${AppName}-CodeDeployDeploymentGroupName
+                ApplicationName: !ImportValue
+                  !Sub '${AppName}-CodeDeployAppName'
+                DeploymentGroupName: !ImportValue
+                  !Sub '${AppName}-CodeDeployDeploymentGroupName'
                 TaskDefinitionTemplateArtifact: SourceArtifact
                 TaskDefinitionTemplatePath: "taskdef.json"
                 AppSpecTemplateArtifact: SourceArtifact
