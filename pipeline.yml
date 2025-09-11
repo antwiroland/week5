@@ -45,13 +45,14 @@ Resources:
               Configuration:
                 ApplicationName: !ImportValue 'java-full-stack-CodeDeployAppName'
                 DeploymentGroupName: !ImportValue 'java-full-stack-CodeDeployDeploymentGroupName'
-                TaskDefinitionTemplateArtifact: SourceArtifact  
-                TaskDefinitionTemplatePath: "taskdef.json"     
-                AppSpecTemplateArtifact: SourceArtifact         
-                AppSpecTemplatePath: "appspec.yml"             
+                TaskDefinitionTemplateArtifact: SourceArtifact
+                TaskDefinitionTemplatePath: "taskdef.json"
+                AppSpecTemplateArtifact: SourceArtifact
+                AppSpecTemplatePath: "appspec.yml"
               InputArtifacts:
                 - Name: SourceArtifact
               RunOrder: 1
+
 Outputs:
   PipelineName:
     Description: 'CodePipeline Name'

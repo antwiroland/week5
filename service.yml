@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'ECS Fargate Service Stack with CodeDeploy Blue-Green Deployment - triggered'
+Description: 'ECS Fargate Service Stack with Auto Scaling'
 
 Parameters:
   AppName:
@@ -43,43 +43,13 @@ Resources:
               awslogs-region: !Ref 'AWS::Region'
               awslogs-stream-prefix: ecs
 
-
-  GreenTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name: !Sub ${AppName}-Green-TG
-      Port: 80
-      Protocol: HTTP
-      TargetType: ip
-      VpcId: !ImportValue 'java-full-stack-VPCId'
-      HealthCheckPath: /
-      HealthCheckProtocol: HTTP
-      HealthCheckIntervalSeconds: 30
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 3
-      Matcher:
-        HttpCode: '200'
-
-
-  TestListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !ImportValue 'java-full-stack-ALBArn'
-      Port: 9000
-      Protocol: HTTP
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref GreenTargetGroup
-
-
   ECSService:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: !Sub ${AppName}-Service
       Cluster: !ImportValue 'java-full-stack-ECSClusterName'
       TaskDefinition: !Ref ECSTaskDefinition
-      DesiredCount: 0
+      DesiredCount: 1
       LaunchType: FARGATE
       DeploymentController:
         Type: CODE_DEPLOY
@@ -95,7 +65,6 @@ Resources:
             - !ImportValue 'java-full-stack-PrivateSubnet2Id'
           SecurityGroups:
             - !ImportValue 'java-full-stack-ECSSecurityGroupId'
-
 
   ScalableTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
@@ -123,51 +92,6 @@ Resources:
         PredefinedMetricSpecification:
           PredefinedMetricType: ECSServiceAverageCPUUtilization
 
-
-  CodeDeployApp:
-    Type: AWS::CodeDeploy::Application
-    Properties:
-      ApplicationName: !Sub ${AppName}-CodeDeploy-App
-      ComputePlatform: ECS
-
-
-  CodeDeployDeploymentGroup:
-    Type: AWS::CodeDeploy::DeploymentGroup
-    DependsOn: ECSService
-    Properties:
-      ApplicationName: !Ref CodeDeployApp
-      DeploymentGroupName: !Sub ${AppName}-CodeDeploy-DG
-      ServiceRoleArn: !ImportValue 'java-full-stack-CodeDeployServiceRoleArn'
-      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
-      DeploymentStyle:
-        DeploymentType: BLUE_GREEN
-        DeploymentOption: WITH_TRAFFIC_CONTROL
-      BlueGreenDeploymentConfiguration:
-        TerminateBlueInstancesOnDeploymentSuccess:
-          Action: TERMINATE
-          TerminationWaitTimeInMinutes: 5
-        DeploymentReadyOption:
-          ActionOnTimeout: CONTINUE_DEPLOYMENT
-      AutoRollbackConfiguration:
-        Enabled: true
-        Events:
-          - DEPLOYMENT_FAILURE
-          - DEPLOYMENT_STOP_ON_ALARM
-      ECSServices:
-        - ServiceName: !GetAtt ECSService.Name
-          ClusterName: !ImportValue 'java-full-stack-ECSClusterName'
-      LoadBalancerInfo:
-        TargetGroupPairInfoList:
-          - TargetGroups:
-              - Name: !ImportValue 'java-full-stack-ALBTargetGroupName'
-              - Name: !GetAtt GreenTargetGroup.TargetGroupName
-            ProdTrafficRoute:
-              ListenerArns:
-                - !ImportValue 'java-full-stack-ALBListenerArn'
-            TestTrafficRoute:
-              ListenerArns:
-                - !Ref TestListener
-
 Outputs:
   ServiceURL:
     Description: 'URL to access the application'
@@ -182,30 +106,6 @@ Outputs:
     Value: !Ref ECSService
     Export:
       Name: !Sub ${AppName}-ECSServiceName
-
-  CodeDeployAppName:
-    Description: 'CodeDeploy Application Name'
-    Value: !Ref CodeDeployApp
-    Export:
-      Name: !Sub ${AppName}-CodeDeployAppName
-
-  CodeDeployDeploymentGroupName:
-    Description: 'CodeDeploy Deployment Group Name'
-    Value: !Ref CodeDeployDeploymentGroup
-    Export:
-      Name: !Sub ${AppName}-CodeDeployDeploymentGroupName
-
-  TestListenerArn:
-    Description: 'Test Listener ARN for Blue-Green Deployment'
-    Value: !Ref TestListener
-    Export:
-      Name: !Sub ${AppName}-TestListenerArn
-
-  GreenTargetGroupName:
-    Description: 'Green Target Group Name'
-    Value: !GetAtt GreenTargetGroup.TargetGroupName
-    Export:
-      Name: !Sub ${AppName}-GreenTargetGroupName
 
   ScalableTargetId:
     Description: 'Application Auto Scaling Target ID'
