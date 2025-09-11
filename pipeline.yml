@@ -1,21 +1,23 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CodePipeline for ECS Blue-Green Deployment - Hardcoded Values'
+Description: 'CodePipeline for ECS Blue-Green Deployment'
 
 Parameters:
+  AppName:
+    Type: String
+    Default: 'java-full-stack'
   DeploymentTimestamp:
     Type: String
     Default: "default"
-    Description: 'Timestamp to force pipeline changes'
 
 Resources:
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: java-full-stack-Pipeline
-      RoleArn: arn:aws:iam::481980074895:role/cloudformationlabInfrastrure-CodePipelineServiceRole-w2BSTbgsWmPM
+      Name: !Sub ${AppName}-Pipeline
+      RoleArn: !ImportValue 'java-full-stack-CodePipelineServiceRoleArn'
       ArtifactStore:
         Type: S3
-        Location: cloudformationlabinfrastrure-artifactbucket-icilhdel8q4w
+        Location: !ImportValue 'java-full-stack-ArtifactBucketName'
       Stages:
         - Name: Source
           Actions:
@@ -26,7 +28,7 @@ Resources:
                 Version: '1'
                 Provider: S3
               Configuration:
-                S3Bucket: cloudformationlabinfrastrure-artifactbucket-icilhdel8q4w
+                S3Bucket: !ImportValue 'java-full-stack-ArtifactBucketName'
                 S3ObjectKey: deployment-artifacts/latest.zip
                 PollForSourceChanges: false
               OutputArtifacts:
@@ -39,22 +41,21 @@ Resources:
                 Category: Deploy
                 Owner: AWS
                 Version: '1'
-                Provider: CodeDeployToECS
+                Provider: CodeDeployToECS  # CHANGED FROM: CodeDeploy
               Configuration:
-                ApplicationName: java-full-stack-CodeDeployApp
-                DeploymentGroupName: java-full-stack-CodeDeployDeploymentGroup
+                ApplicationName: !ImportValue 'java-full-stack-CodeDeployAppName'
+                DeploymentGroupName: !ImportValue 'java-full-stack-CodeDeployDeploymentGroupName'
                 TaskDefinitionTemplateArtifact: SourceArtifact
-                TaskDefinitionTemplatePath: taskdef.json
+                TaskDefinitionTemplatePath: "taskdef.json"
                 AppSpecTemplateArtifact: SourceArtifact
-                AppSpecTemplatePath: appspec.yml
+                AppSpecTemplatePath: "appspec.yml"
               InputArtifacts:
                 - Name: SourceArtifact
               RunOrder: 1
-
 Outputs:
   PipelineName:
     Description: 'CodePipeline Name'
-    Value: java-full-stack-Pipeline
+    Value: !Ref CodePipeline
   DeploymentTimestamp:
     Description: 'Timestamp of last deployment'
     Value: !Ref DeploymentTimestamp
