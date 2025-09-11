@@ -10,79 +10,14 @@ Parameters:
     Default: "default"
 
 Resources:
-  # ECS Task Definition
-  ECSTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: !Sub '${AppName}-TaskDef'
-      Cpu: '256'
-      Memory: '512'
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      ExecutionRoleArn: !ImportValue
-        !Sub '${AppName}-ECSTaskExecutionRoleArn'
-      TaskRoleArn: !ImportValue
-        !Sub '${AppName}-ECSTaskRoleArn'
-      ContainerDefinitions:
-        - Name: !Ref AppName
-          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AppName}:latest'
-          PortMappings:
-            - ContainerPort: 8080
-
-  # ECS Service
-  ECSService:
-    Type: AWS::ECS::Service
-    Properties:
-      ServiceName: !Sub '${AppName}-Service'
-      Cluster: !ImportValue
-        !Sub '${AppName}-ECSClusterName'
-      TaskDefinition: !Ref ECSTaskDefinition
-      DesiredCount: 1
-      LaunchType: FARGATE
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue
-              !Sub '${AppName}-PrivateSubnet1Id'
-            - !ImportValue
-              !Sub '${AppName}-PrivateSubnet2Id'
-          SecurityGroups:
-            - !ImportValue
-              !Sub '${AppName}-ECSSecurityGroupId'
-          AssignPublicIp: ENABLED
-
-  # CodeDeploy Deployment Group
-  CodeDeployDeploymentGroup:
-    Type: AWS::CodeDeploy::DeploymentGroup
-    Properties:
-      ApplicationName: !Sub '${AppName}-CodeDeployApp'
-      DeploymentGroupName: !Sub '${AppName}-DeploymentGroup'
-      ServiceRoleArn: !ImportValue
-        !Sub '${AppName}-CodeDeployRoleArn'
-      DeploymentStyle:
-        DeploymentType: BLUE_GREEN
-        DeploymentOption: WITH_TRAFFIC_CONTROL
-      BlueGreenDeploymentConfiguration:
-        TerminateBlueInstancesOnDeploymentSuccess:
-          Action: TERMINATE
-          WaitTimeInMinutes: 5
-      ECSService:
-        - ServiceName: !Ref ECSService
-          ClusterName: !ImportValue
-            !Sub '${AppName}-ECSClusterName'
-
-  # CodePipeline
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: !Sub '${AppName}-Pipeline'
-      RoleArn: !ImportValue
-        !Sub '${AppName}-CodePipelineServiceRoleArn'
+      Name: !Sub ${AppName}-Pipeline
+      RoleArn: !ImportValue !Sub ${AppName}-CodePipelineServiceRoleArn
       ArtifactStore:
         Type: S3
-        Location: !ImportValue
-          !Sub '${AppName}-ArtifactBucketName'
+        Location: !ImportValue !Sub ${AppName}-ArtifactBucketName
       Stages:
         - Name: Source
           Actions:
@@ -93,8 +28,7 @@ Resources:
                 Version: '1'
                 Provider: S3
               Configuration:
-                S3Bucket: !ImportValue
-                  !Sub '${AppName}-ArtifactBucketName'
+                S3Bucket: !ImportValue !Sub ${AppName}-ArtifactBucketName
                 S3ObjectKey: deployment-artifacts/latest.zip
                 PollForSourceChanges: false
               OutputArtifacts:
@@ -108,21 +42,21 @@ Resources:
                 Owner: AWS
                 Version: '1'
                 Provider: CodeDeployToECS
+              Configuration:
+                ApplicationName: !ImportValue !Sub ${AppName}-CodeDeployAppName
+                DeploymentGroupName: !ImportValue !Sub ${AppName}-CodeDeployDeploymentGroupName
+                TaskDefinitionTemplateArtifact: SourceArtifact
+                TaskDefinitionTemplatePath: "taskdef.json"
+                AppSpecTemplateArtifact: SourceArtifact
+                AppSpecTemplatePath: "appspec.yml"
               InputArtifacts:
                 - Name: SourceArtifact
-              Configuration:
-                ApplicationName: !Ref CodeDeployDeploymentGroup
-                DeploymentGroupName: !Ref CodeDeployDeploymentGroup
-                TaskDefinitionTemplateArtifact: SourceArtifact
-                TaskDefinitionTemplatePath: taskdef.json
-                AppSpecTemplateArtifact: SourceArtifact
-                AppSpecTemplatePath: appspec.yml
               RunOrder: 1
 
 Outputs:
   PipelineName:
-    Description: CodePipeline Name
+    Description: 'CodePipeline Name'
     Value: !Ref CodePipeline
   DeploymentTimestamp:
-    Description: Timestamp of last deployment
+    Description: 'Timestamp of last deployment'
     Value: !Ref DeploymentTimestamp
