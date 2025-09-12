@@ -63,7 +63,7 @@ Outputs:
     Value: !Ref CodePipeline
     Export:
       Name: !Sub ${AppName}-PipelineName
-  DeploymentTimestamp:
-    Value: !Ref DeploymentTimestamp
-    Export:
-      Name: !Sub ${AppName}-DeploymentTimestamp
+  # DeploymentTimestamp:
+  #   Value: !Ref DeploymentTimestamp
+  #   Export:
+  #     Name: !Sub ${AppName}-DeploymentTimestamp
