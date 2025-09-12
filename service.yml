@@ -19,8 +19,10 @@ Resources:
       RequiresCompatibilities: [FARGATE]
       Cpu: 256
       Memory: 512
-      ExecutionRoleArn: !ImportValue '!Sub ${AppName}-ECSTaskExecutionRoleArn'
-      TaskRoleArn: !ImportValue '!Sub ${AppName}-ECSTaskRoleArn'
+      ExecutionRoleArn: !ImportValue 
+        Fn::Sub: '${AppName}-ECSTaskExecutionRoleArn'
+      TaskRoleArn: !ImportValue 
+        Fn::Sub: '${AppName}-ECSTaskRoleArn'
       ContainerDefinitions:
         - Name: !Sub ${AppName}-Container
           Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AppName}:latest"
@@ -38,7 +40,8 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !ImportValue '!Sub ${AppName}-CloudWatchLogGroupName'
+              awslogs-group: !ImportValue 
+                Fn::Sub: '${AppName}-CloudWatchLogGroupName'
               awslogs-region: !Ref 'AWS::Region'
               awslogs-stream-prefix: ecs
 
@@ -49,7 +52,8 @@ Resources:
       Port: 80
       Protocol: HTTP
       TargetType: ip
-      VpcId: !ImportValue '!Sub ${AppName}-VPCId'
+      VpcId: !ImportValue 
+        Fn::Sub: '${AppName}-VPCId'
       HealthCheckPath: /
       HealthCheckProtocol: HTTP
       HealthCheckIntervalSeconds: 30
@@ -62,7 +66,8 @@ Resources:
   TestListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: !ImportValue '!Sub ${AppName}-ALBArn'
+      LoadBalancerArn: !ImportValue 
+        Fn::Sub: '${AppName}-ALBArn'
       Port: 9000
       Protocol: HTTP
       DefaultActions:
@@ -73,24 +78,29 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: !Sub ${AppName}-Service
-      Cluster: !ImportValue '!Sub ${AppName}-ECSClusterName'
+      Cluster: !ImportValue 
+        Fn::Sub: '${AppName}-ECSClusterName'
       TaskDefinition: !Ref ECSTaskDefinition
       DesiredCount: 0
       LaunchType: FARGATE
       DeploymentController:
         Type: CODE_DEPLOY
       LoadBalancers:
-        - TargetGroupArn: !ImportValue '!Sub ${AppName}-ALBTargetGroupArn'
+        - TargetGroupArn: !ImportValue 
+            Fn::Sub: '${AppName}-ALBTargetGroupArn'
           ContainerName: !Sub ${AppName}-Container
           ContainerPort: 8080
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: DISABLED
           Subnets:
-            - !ImportValue '!Sub ${AppName}-PrivateSubnet1Id'
-            - !ImportValue '!Sub ${AppName}-PrivateSubnet2Id'
+            - !ImportValue 
+                Fn::Sub: '${AppName}-PrivateSubnet1Id'
+            - !ImportValue 
+                Fn::Sub: '${AppName}-PrivateSubnet2Id'
           SecurityGroups:
-            - !ImportValue '!Sub ${AppName}-ECSSecurityGroupId'
+            - !ImportValue 
+                Fn::Sub: '${AppName}-ECSSecurityGroupId'
 
   # --- Auto Scaling & CodeDeploy ---
   ScalableTarget:
@@ -128,7 +138,8 @@ Resources:
     Properties:
       ApplicationName: !Ref CodeDeployApp
       DeploymentGroupName: !Sub ${AppName}-CodeDeploy-DG
-      ServiceRoleArn: !ImportValue '!Sub ${AppName}-CodeDeployServiceRoleArn'
+      ServiceRoleArn: !ImportValue 
+        Fn::Sub: '${AppName}-CodeDeployServiceRoleArn'
       DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
@@ -146,15 +157,18 @@ Resources:
           - DEPLOYMENT_STOP_ON_ALARM
       ECSServices:
         - ServiceName: !GetAtt ECSService.Name
-          ClusterName: !ImportValue '!Sub ${AppName}-ECSClusterName'
+          ClusterName: !ImportValue 
+            Fn::Sub: '${AppName}-ECSClusterName'
       LoadBalancerInfo:
         TargetGroupPairInfoList:
           - TargetGroups:
-              - Name: !ImportValue '!Sub ${AppName}-ALBTargetGroupName'
+              - Name: !ImportValue 
+                  Fn::Sub: '${AppName}-ALBTargetGroupName'
               - Name: !GetAtt GreenTargetGroup.TargetGroupName
             ProdTrafficRoute:
               ListenerArns:
-                - !ImportValue '!Sub ${AppName}-ALBListenerArn'
+                - !ImportValue 
+                    Fn::Sub: '${AppName}-ALBListenerArn'
             TestTrafficRoute:
               ListenerArns:
                 - !Ref TestListener
