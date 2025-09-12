@@ -81,7 +81,7 @@ Resources:
       Cluster: !ImportValue 
         Fn::Sub: '${AppName}-ECSClusterName'
       TaskDefinition: !Ref ECSTaskDefinition
-      DesiredCount: 0
+      DesiredCount: 1
       LaunchType: FARGATE
       DeploymentController:
         Type: CODE_DEPLOY
