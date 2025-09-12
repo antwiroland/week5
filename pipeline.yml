@@ -14,10 +14,10 @@ Resources:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       Name: !Sub ${AppName}-Pipeline
-      RoleArn: !ImportValue 'java-full-stack-CodePipelineServiceRoleArn'
+      RoleArn: !ImportValue '${AppName}-CodePipelineServiceRoleArn'
       ArtifactStore:
         Type: S3
-        Location: !ImportValue 'java-full-stack-ArtifactBucketName'
+        Location: !ImportValue '${AppName}-ArtifactBucketName'
       Stages:
         - Name: Source
           Actions:
@@ -28,7 +28,7 @@ Resources:
                 Version: '1'
                 Provider: S3
               Configuration:
-                S3Bucket: !ImportValue 'java-full-stack-ArtifactBucketName'
+                S3Bucket: !ImportValue '${AppName}-ArtifactBucketName'
                 S3ObjectKey: deployment-artifacts/latest.zip
                 PollForSourceChanges: false
               OutputArtifacts:
@@ -41,10 +41,10 @@ Resources:
                 Category: Deploy
                 Owner: AWS
                 Version: '1'
-                Provider: CodeDeployToECS  # CHANGED FROM: CodeDeploy
+                Provider: CodeDeployToECS
               Configuration:
-                ApplicationName: !ImportValue 'java-full-stack-CodeDeployAppName'
-                DeploymentGroupName: !ImportValue 'java-full-stack-CodeDeployDeploymentGroupName'
+                ApplicationName: !ImportValue '${AppName}-CodeDeployAppName'
+                DeploymentGroupName: !ImportValue '${AppName}-CodeDeployDeploymentGroupName'
                 TaskDefinitionTemplateArtifact: SourceArtifact
                 TaskDefinitionTemplatePath: "taskdef.json"
                 AppSpecTemplateArtifact: SourceArtifact
@@ -52,10 +52,13 @@ Resources:
               InputArtifacts:
                 - Name: SourceArtifact
               RunOrder: 1
+
 Outputs:
   PipelineName:
-    Description: 'CodePipeline Name'
     Value: !Ref CodePipeline
+    Export:
+      Name: !Sub ${AppName}-PipelineName
   DeploymentTimestamp:
-    Description: 'Timestamp of last deployment'
     Value: !Ref DeploymentTimestamp
+    Export:
+      Name: !Sub ${AppName}-DeploymentTimestamp

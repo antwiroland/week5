@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'ECS Fargate Service Stack with CodeDeploy Blue-Green Deployment - triggered'
+Description: 'ECS Fargate Service Stack with CodeDeploy Blue-Green Deployment'
 
 Parameters:
   AppName:
@@ -11,7 +11,6 @@ Parameters:
     Description: 'Timestamp to force changeset creation'
 
 Resources:
-  # ECS TASK DEFINITION - blueprint for how to run your application
   ECSTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -20,13 +19,12 @@ Resources:
       RequiresCompatibilities: [FARGATE]
       Cpu: 256
       Memory: 512
-      ExecutionRoleArn: !ImportValue 'java-full-stack-ECSTaskExecutionRoleArn'
-      TaskRoleArn: !ImportValue 'java-full-stack-ECSTaskRoleArn'
+      ExecutionRoleArn: !ImportValue '${AppName}-ECSTaskExecutionRoleArn'
+      TaskRoleArn: !ImportValue '${AppName}-ECSTaskRoleArn'
       ContainerDefinitions:
         - Name: !Sub ${AppName}-Container
-          Image: !Sub
-            - "${ECRRepoURI}:latest"
-            - ECRRepoURI: !ImportValue 'java-full-stack-ECRRepositoryURI'
+          Image: !Sub "${ECRRepoURI}:latest"
+          Environment: []
           Essential: true
           PortMappings:
             - ContainerPort: 8080
@@ -40,11 +38,10 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !ImportValue 'java-full-stack-CloudWatchLogGroupName'
+              awslogs-group: !ImportValue '${AppName}-CloudWatchLogGroupName'
               awslogs-region: !Ref 'AWS::Region'
               awslogs-stream-prefix: ecs
 
-  # --- GREEN TARGET GROUP FOR BLUE-GREEN DEPLOYMENT ---
   GreenTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
@@ -52,7 +49,7 @@ Resources:
       Port: 80
       Protocol: HTTP
       TargetType: ip
-      VpcId: !ImportValue 'java-full-stack-VPCId'
+      VpcId: !ImportValue '${AppName}-VPCId'
       HealthCheckPath: /
       HealthCheckProtocol: HTTP
       HealthCheckIntervalSeconds: 30
@@ -62,52 +59,47 @@ Resources:
       Matcher:
         HttpCode: '200'
 
-  # --- TEST LISTENER FOR BLUE-GREEN DEPLOYMENT ---
   TestListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: !ImportValue 'java-full-stack-ALBArn'
+      LoadBalancerArn: !ImportValue '${AppName}-ALBArn'
       Port: 9000
       Protocol: HTTP
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref GreenTargetGroup
 
-  # --- ECS SERVICE ---
   ECSService:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: !Sub ${AppName}-Service
-      Cluster: !ImportValue 'java-full-stack-ECSClusterName'
+      Cluster: !ImportValue '${AppName}-ECSClusterName'
       TaskDefinition: !Ref ECSTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
       DeploymentController:
         Type: CODE_DEPLOY
       LoadBalancers:
-        - TargetGroupArn: !ImportValue 'java-full-stack-ALBTargetGroupArn'
+        - TargetGroupArn: !ImportValue '${AppName}-ALBTargetGroupArn'
           ContainerName: !Sub ${AppName}-Container
           ContainerPort: 8080
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: DISABLED
           Subnets:
-            - !ImportValue 'java-full-stack-PrivateSubnet1Id'
-            - !ImportValue 'java-full-stack-PrivateSubnet2Id'
+            - !ImportValue '${AppName}-PrivateSubnet1Id'
+            - !ImportValue '${AppName}-PrivateSubnet2Id'
           SecurityGroups:
-            - !ImportValue 'java-full-stack-ECSSecurityGroupId'
+            - !ImportValue '${AppName}-ECSSecurityGroupId'
 
-  # --- APPLICATION AUTO SCALING ---
+  # --- Auto Scaling & CodeDeploy (unchanged) ---
   ScalableTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     DependsOn: ECSService
     Properties:
       MaxCapacity: 4
       MinCapacity: 1
-      ResourceId: !Sub
-        - service/${ClusterName}/${ServiceName}
-        - ClusterName: !ImportValue 'java-full-stack-ECSClusterName'
-          ServiceName: !GetAtt ECSService.Name
+      ResourceId: !Sub service/${ClusterName}/${ServiceName}
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
 
@@ -124,21 +116,19 @@ Resources:
         PredefinedMetricSpecification:
           PredefinedMetricType: ECSServiceAverageCPUUtilization
 
-  # --- CODE DEPLOY APPLICATION ---
   CodeDeployApp:
     Type: AWS::CodeDeploy::Application
     Properties:
       ApplicationName: !Sub ${AppName}-CodeDeploy-App
       ComputePlatform: ECS
 
-  # --- CODE DEPLOY DEPLOYMENT GROUP ---
   CodeDeployDeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
     DependsOn: ECSService
     Properties:
       ApplicationName: !Ref CodeDeployApp
       DeploymentGroupName: !Sub ${AppName}-CodeDeploy-DG
-      ServiceRoleArn: !ImportValue 'java-full-stack-CodeDeployServiceRoleArn'
+      ServiceRoleArn: !ImportValue '${AppName}-CodeDeployServiceRoleArn'
       DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
@@ -156,66 +146,45 @@ Resources:
           - DEPLOYMENT_STOP_ON_ALARM
       ECSServices:
         - ServiceName: !GetAtt ECSService.Name
-          ClusterName: !ImportValue 'java-full-stack-ECSClusterName'
+          ClusterName: !ImportValue '${AppName}-ECSClusterName'
       LoadBalancerInfo:
         TargetGroupPairInfoList:
           - TargetGroups:
-              - Name: !ImportValue 'java-full-stack-ALBTargetGroupName'
+              - Name: !ImportValue '${AppName}-ALBTargetGroupName'
               - Name: !GetAtt GreenTargetGroup.TargetGroupName
             ProdTrafficRoute:
               ListenerArns:
-                - !ImportValue 'java-full-stack-ALBListenerArn'
+                - !ImportValue '${AppName}-ALBListenerArn'
             TestTrafficRoute:
               ListenerArns:
                 - !Ref TestListener
 
 Outputs:
-  ServiceURL:
-    Description: 'URL to access the application'
-    Value: !Sub
-      - "http://${ALBDNSName}"
-      - ALBDNSName: !ImportValue 'java-full-stack-ALBDNSName'
-    Export:
-      Name: !Sub ${AppName}-ServiceURL
-
   ECSServiceName:
-    Description: 'ECS Service Name'
     Value: !Ref ECSService
     Export:
       Name: !Sub ${AppName}-ECSServiceName
-
   CodeDeployAppName:
-    Description: 'CodeDeploy Application Name'
     Value: !Ref CodeDeployApp
     Export:
       Name: !Sub ${AppName}-CodeDeployAppName
-
   CodeDeployDeploymentGroupName:
-    Description: 'CodeDeploy Deployment Group Name'
     Value: !Ref CodeDeployDeploymentGroup
     Export:
       Name: !Sub ${AppName}-CodeDeployDeploymentGroupName
-
   TestListenerArn:
-    Description: 'Test Listener ARN for Blue-Green Deployment'
     Value: !Ref TestListener
     Export:
       Name: !Sub ${AppName}-TestListenerArn
-
   GreenTargetGroupName:
-    Description: 'Green Target Group Name'
     Value: !GetAtt GreenTargetGroup.TargetGroupName
     Export:
       Name: !Sub ${AppName}-GreenTargetGroupName
-
   ScalableTargetId:
-    Description: 'Application Auto Scaling Target ID'
     Value: !Ref ScalableTarget
     Export:
       Name: !Sub ${AppName}-ScalableTargetId
-
   DeploymentTimestamp:
-    Description: 'Timestamp of last deployment'
     Value: !Ref DeploymentTimestamp
     Export:
       Name: !Sub ${AppName}-DeploymentTimestamp
