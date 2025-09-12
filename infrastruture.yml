@@ -34,6 +34,7 @@ Metadata:
 
 Resources:
   # --- IAM ROLES ---
+
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -60,91 +61,90 @@ Resources:
             Action: ['sts:AssumeRole']
       Path: /
 
-  # REPLACED THE EXISTING CodePipelineServiceRole WITH THE UPDATED VERSION
   CodePipelineServiceRole:
-  Type: AWS::IAM::Role
-  DependsOn: 
-    - ECSTaskExecutionRole
-    - ECSTaskRole
-  Properties:
-    AssumeRolePolicyDocument:
-      Version: '2012-10-17'
-      Statement:
-        - Effect: Allow
-          Principal:
-            Service: [codepipeline.amazonaws.com]
-          Action: ['sts:AssumeRole']
-    Path: /
-    Policies:
-      - PolicyName: CodePipelineInlinePolicy
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            # S3 artifact access
-            - Effect: Allow
-              Action:
-                - s3:GetObject
-                - s3:GetObjectVersion
-                - s3:GetBucketVersioning
-                - s3:PutObject
-              Resource:
-                - !Sub 'arn:aws:s3:::${AppName}-artifacts'
-                - !Sub 'arn:aws:s3:::${AppName}-artifacts/*'
+    Type: AWS::IAM::Role
+    DependsOn:
+      - ECSTaskExecutionRole
+      - ECSTaskRole
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [codepipeline.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: CodePipelineInlinePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # S3 artifact access
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                  - s3:PutObject
+                Resource:
+                  - !Sub 'arn:aws:s3:::${AppName}-artifacts'
+                  - !Sub 'arn:aws:s3:::${AppName}-artifacts/*'
 
-            # ECS permissions
-            - Effect: Allow
-              Action:
-                - ecs:RegisterTaskDefinition
-                - ecs:DeregisterTaskDefinition
-                - ecs:DescribeTaskDefinition
-                - ecs:DescribeServices
-                - ecs:DescribeTasks
-                - ecs:ListTasks
-                - ecs:RunTask
-                - ecs:StartTask
-                - ecs:StopTask
-              Resource: "*"
+              # ECS permissions
+              - Effect: Allow
+                Action:
+                  - ecs:RegisterTaskDefinition
+                  - ecs:DeregisterTaskDefinition
+                  - ecs:DescribeTaskDefinition
+                  - ecs:DescribeServices
+                  - ecs:DescribeTasks
+                  - ecs:ListTasks
+                  - ecs:RunTask
+                  - ecs:StartTask
+                  - ecs:StopTask
+                Resource: "*"
 
-            # ECR permissions
-            - Effect: Allow
-              Action:
-                - ecr:GetAuthorizationToken
-                - ecr:DescribeRepositories
-                - ecr:ListImages
-                - ecr:BatchGetImage
-                - ecr:GetDownloadUrlForLayer
-                - ecr:DescribeImages
-              Resource: !Sub 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${AppName}'
+              # ECR permissions
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:DescribeRepositories
+                  - ecr:ListImages
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:DescribeImages
+                Resource: !Sub 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${AppName}'
 
-            # CodeDeploy permissions
-            - Effect: Allow
-              Action:
-                - codedeploy:CreateDeployment
-                - codedeploy:GetDeployment
-                - codedeploy:GetDeploymentConfig
-                - codedeploy:GetApplication
-                - codedeploy:GetApplicationRevision
-                - codedeploy:RegisterApplicationRevision
-                - codedeploy:ListDeployments
-              Resource: "*"
+              # CodeDeploy permissions
+              - Effect: Allow
+                Action:
+                  - codedeploy:CreateDeployment
+                  - codedeploy:GetDeployment
+                  - codedeploy:GetDeploymentConfig
+                  - codedeploy:GetApplication
+                  - codedeploy:GetApplicationRevision
+                  - codedeploy:RegisterApplicationRevision
+                  - codedeploy:ListDeployments
+                Resource: "*"
 
-            # IAM permission for passing ECS roles - USING WILDCARD INSTEAD OF SPECIFIC ARNs
-            - Effect: Allow
-              Action:
-                - iam:PassRole
-              Resource:
-                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/${AppName}-*'
-                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/cloudformationlab-infrastructu-*'
+              # IAM permission for passing ECS roles
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !GetAtt ECSTaskExecutionRole.Arn
+                  - !GetAtt ECSTaskRole.Arn
 
-            # CloudWatch permissions for monitoring
-            - Effect: Allow
-              Action:
-                - logs:DescribeLogGroups
-                - logs:DescribeLogStreams
-                - logs:GetLogEvents
-                - logs:FilterLogEvents
-              Resource: "*"
-              
+              # CloudWatch permissions
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                Resource: "*"
+
   CodeDeployServiceRole:
     Type: AWS::IAM::Role
     Properties:
