@@ -62,7 +62,7 @@ Resources:
             Action: ['sts:AssumeRole']
       Path: /
 
-  # role assumed by codepeline to carry s3 actions of our artifact bucket when the codebuild placed them
+  # role assumed by codepipeline to carry s3 actions of our artifact bucket when the codebuild placed them
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -71,8 +71,10 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: [codepipeline.amazonaws.com]
-            Action: ['sts:AssumeRole']
+              Service: 
+                - codepipeline.amazonaws.com
+            Action: 
+              - sts:AssumeRole
       Policies:
         - PolicyName: CodePipelinePermissions
           PolicyDocument:
@@ -87,6 +89,7 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:s3:::${ArtifactBucket}'
                   - !Sub 'arn:aws:s3:::${ArtifactBucket}/*'
+
               - Effect: Allow
                 Action:
                   - 'codebuild:BatchGetBuilds'
@@ -99,8 +102,11 @@ Resources:
                   - 'codedeploy:RegisterApplicationRevision'
                   - 'ecs:DescribeServices'
                   - 'ecs:DescribeTaskDefinition'
-                  - 'iam:PassRole' #crucial—it allows Pipeline to pass roles to other services (like passing the ECS task role to CodeDeploy).
+                  - 'ecs:RegisterTaskDefinition'
+                  - 'ecs:UpdateService'
+                  - 'iam:PassRole'
                 Resource: '*'
+
               - Effect: Allow
                 Action:
                   - 'ecr:DescribeImages'
@@ -109,6 +115,7 @@ Resources:
                   - 'ecr:BatchGetImage'
                   - 'ecr:GetDownloadUrlForLayer'
                 Resource: !Sub 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${AppName}'
+
               - Effect: Allow
                 Action:
                   - 'ecr:GetAuthorizationToken'
