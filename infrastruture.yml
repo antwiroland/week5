@@ -63,7 +63,6 @@ Resources:
       Path: /
 
   # role assumed by codepipeline to carry s3 actions of our artifact bucket when the codebuild placed them
-
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -89,8 +88,8 @@ Resources:
                   - s3:GetBucketVersioning
                   - s3:PutObject
                 Resource:
-                  - !Sub "arn:aws:s3:::${ArtifactBucket}"
-                  - !Sub "arn:aws:s3:::${ArtifactBucket}/*"
+                  - !GetAtt ArtifactBucket.Arn
+                  - !Sub "${ArtifactBucket.Arn}/*"
 
         - PolicyName: CodePipelineCodeBuildAccess
           PolicyDocument:
@@ -162,7 +161,7 @@ Resources:
                 Resource: "*"
       Path: /
 
-#Role assumed by codedeploy
+  #Role assumed by codedeploy
   CodeDeployServiceRole:
     Type: AWS::IAM::Role
     Properties:
