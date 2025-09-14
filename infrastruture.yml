@@ -165,83 +165,88 @@ Resources:
   GitHubOIDCRole:
     Type: AWS::IAM::Role
     Properties:
-      AssumeRolePolicyDocument: #"Trust tokens from our GitHubOIDCProvider if they come from the specified repository "
-        Version: '2012-10-17'
+      RoleName: !Sub "${AppName}-GitHubOIDCRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Ref GitHubOIDCProvider
-            Action: 'sts:AssumeRoleWithWebIdentity'
+              Federated: arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
             Condition:
-              StringEquals:
-                'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
               StringLike:
-                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubRepoOwner}/${GitHubRepoName}:*'
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOrg}/${GitHubRepoName}:ref:refs/heads/main"
       Policies:
-        - PolicyName: ECRPushPull
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 'ecr:GetAuthorizationToken'
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - 'ecr:BatchCheckLayerAvailability'
-                  - 'ecr:GetDownloadUrlForLayer'
-                  - 'ecr:GetRepositoryPolicy'
-                  - 'ecr:DescribeRepositories'
-                  - 'ecr:ListImages'
-                  - 'ecr:DescribeImages'
-                  - 'ecr:BatchGetImage'
-                  - 'ecr:InitiateLayerUpload'
-                  - 'ecr:UploadLayerPart'
-                  - 'ecr:CompleteLayerUpload'
-                  - 'ecr:PutImage'
-                Resource: !Sub 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${AppName}'
+        # --- S3 Artifact Bucket Access ---
         - PolicyName: S3ArtifactAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
-                  - 's3:PutObject'
-                  - 's3:GetObject'
-                Resource: !Sub 'arn:aws:s3:::${ArtifactBucket}/deployment-artifacts/*'
-        - PolicyName: ECSCodeDeployAccess
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub "arn:aws:s3:::${ArtifactBucket}/deployment-artifacts/*"
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !Sub "arn:aws:s3:::${ArtifactBucket}"
+
+        # --- Amazon ECR Access ---
+        - PolicyName: ECRAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
-                  - 'ecs:RegisterTaskDefinition'
-                  - 'ecs:DescribeTaskDefinition'
-                  - 'ecs:DescribeServices'
-                Resource: '*'
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:DescribeImages
+                  - ecr:DescribeRepositories
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource: "*"
+
+        # --- ECS Task Definition Registration ---
+        - PolicyName: ECSRegisterTaskDef
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
               - Effect: Allow
                 Action:
-                  - 'codedeploy:CreateDeployment'
-                  - 'codedeploy:GetDeployment'
-                  - 'codedeploy:GetDeploymentConfig'
-                  - 'codedeploy:GetApplication'
-                  - 'codedeploy:GetApplicationRevision'
-                Resource: '*'
+                  - ecs:RegisterTaskDefinition
+                  - ecs:DescribeTaskDefinition
+                Resource: "*"
+
+        # --- IAM PassRole (for ECS Task Execution & Task Role) ---
+        - PolicyName: IAMPassRole
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
               - Effect: Allow
                 Action:
-                  - 'iam:PassRole'
+                  - iam:PassRole
                 Resource:
-                  - !GetAtt ECSTaskExecutionRole.Arn
-                  - !GetAtt ECSTaskRole.Arn
-        - PolicyName: PipelineTriggerAccess
+                  - !Ref TaskExecutionRole
+                  - !Ref TaskRole
+
+        # --- CodePipeline Trigger ---
+        - PolicyName: CodePipelineTrigger
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
-                  - 'codepipeline:StartPipelineExecution'
-                Resource: !Sub 'arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${AppName}-Pipeline'
-      Path: /
+                  - codepipeline:StartPipelineExecution
+                Resource: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${AppName}-Pipeline"
+
 
   # --- NETWORKING (High Availability) ---
   #VPC: Creates a Virtual Private Cloud, a logically isolated network.
