@@ -14,7 +14,7 @@ Parameters:
     Type: String
     Default: 'antwiroland'
     Description: 'The owner of the GitHub repository'
-      #use this to trigger change
+  #use this to trigger change
   DeploymentTimestamp:
     Type: String
     Default: "default"
@@ -211,7 +211,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Federated: arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+              Federated: !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringLike:
@@ -274,8 +274,8 @@ Resources:
                 Action:
                   - iam:PassRole
                 Resource:
-                  - !Ref TaskExecutionRole
-                  - !Ref TaskRole
+                  - !GetAtt ECSTaskExecutionRole.Arn
+                  - !GetAtt ECSTaskRole.Arn
 
         # --- CodePipeline Trigger ---
         - PolicyName: CodePipelineTrigger
@@ -506,7 +506,7 @@ Resources:
   # --- ECR REPOSITORY ------
   # Creates an Elastic Container Registry repository to store your Docker images.
   ECRRepository:
-    Type: AWS::ECR::Repository
+    Type: AWS::EC2::Repository
     Properties:
       RepositoryName: !Ref AppName
       ImageTagMutability: MUTABLE #Allows image tags (like latest) to be overwritten.
