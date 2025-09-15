@@ -477,8 +477,8 @@ Resources:
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
+          FromPort: 80
+          ToPort: 80
           CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: tcp
@@ -537,7 +537,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name: !Sub ${AppName}-Blue-TG
-      Port: 80
+      Port: 8080
       Protocol: HTTP
       TargetType: ip #  Because Fargate tasks use elastic network interfaces with their own IP addresses, we target by IP, not by instance ID
       VpcId: !Ref VPC
